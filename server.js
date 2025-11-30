@@ -1,12 +1,15 @@
 const express = require('express');
-const cors = require('cors');
-const bodyParser = require('body-parser');
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
-app.use(bodyParser.json());
+// Middleware ساده بدون cors
+app.use(express.json());
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+    next();
+});
 
 // ذخیره‌سازی داده‌ها
 let deviceData = {
@@ -30,11 +33,10 @@ app.get('/status', (req, res) => {
     res.json(deviceData);
 });
 
-// ✅ اضافه کردن آدرس commands که گم شده بود
 app.get('/commands', (req, res) => {
     console.log('📥 Commands requested - Pending:', pendingCommands);
     const commands = [...pendingCommands];
-    pendingCommands = []; // پاک کردن پس از ارسال
+    pendingCommands = [];
     res.json({commands: commands});
 });
 
@@ -57,7 +59,7 @@ app.post('/control', (req, res) => {
     res.json({status: "success", message: "Command queued"});
 });
 
-// ✅ صفحه اصلی تست
+// صفحه اصلی
 app.get('/', (req, res) => {
     res.send(`
         <html dir="rtl">
@@ -65,8 +67,20 @@ app.get('/', (req, res) => {
             <meta charset="UTF-8">
             <title>کنترل یخچال کامیون</title>
             <style>
-                body { font-family: Tahoma; text-align: center; padding: 50px; }
-                .box { background: #f0f0f0; padding: 20px; margin: 20px; border-radius: 10px; }
+                body { 
+                    font-family: Tahoma; 
+                    text-align: center; 
+                    padding: 50px;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                }
+                .box { 
+                    background: rgba(255,255,255,0.1); 
+                    padding: 20px; 
+                    margin: 20px; 
+                    border-radius: 10px;
+                    backdrop-filter: blur(10px);
+                }
             </style>
         </head>
         <body>
@@ -76,8 +90,8 @@ app.get('/', (req, res) => {
             <div class="box">
                 <h3>وضعیت فعلی:</h3>
                 <p>دما: ${deviceData.temperature}°C</p>
-                <p>رله 1: ${deviceData.relay1 ? 'روشن' : 'خاموش'}</p>
-                <p>رله 2: ${deviceData.relay2 ? 'روشن' : 'خاموش'}</p>
+                <p>رله 1: ${deviceData.relay1 ? '🟢 روشن' : '🔴 خاموش'}</p>
+                <p>رله 2: ${deviceData.relay2 ? '🟢 روشن' : '🔴 خاموش'}</p>
             </div>
             
             <div class="box">
@@ -88,6 +102,12 @@ app.get('/', (req, res) => {
                     <li><b>GET /commands</b> - دریافت دستورات</li>
                     <li><b>POST /control</b> - ارسال دستور کنترل</li>
                 </ul>
+            </div>
+
+            <div class="box">
+                <h3>تست سریع:</h3>
+                <button onclick="fetch('/status').then(r=>r.json()).then(console.log)">تست وضعیت</button>
+                <button onclick="fetch('/commands').then(r=>r.json()).then(console.log)">تست دستورات</button>
             </div>
         </body>
         </html>
