@@ -11,6 +11,9 @@ app.use((req, res, next) => {
     next();
 });
 
+// پسورد صفحه وب - اینجا میتونی تغییرش بدی
+const WEB_PASSWORD = "truck123";
+
 // ذخیره‌سازی داده‌ها
 let deviceData = {
     temperature: 0,
@@ -21,8 +24,114 @@ let deviceData = {
 
 let pendingCommands = [];
 
-// ✅ صفحه اصلی وب
-app.get('/', (req, res) => {
+// middleware بررسی پسورد
+function checkPassword(req, res, next) {
+    const urlPassword = req.query.pass;
+    
+    if (urlPassword === WEB_PASSWORD) {
+        next(); // اجازه دسترسی
+    } else {
+        // نمایش صفحه لاگین
+        res.send(`
+        <!DOCTYPE html>
+        <html dir="rtl">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>ورود - کنترل یخچال کامیون</title>
+            <style>
+                body { 
+                    font-family: Tahoma, Arial, sans-serif; 
+                    text-align: center; 
+                    padding: 20px;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    margin: 0;
+                    min-height: 100vh;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+                .login-container {
+                    max-width: 400px;
+                    width: 90%;
+                    background: rgba(255,255,255,0.1);
+                    padding: 40px 30px;
+                    border-radius: 15px;
+                    backdrop-filter: blur(10px);
+                    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+                }
+                h1 {
+                    margin-bottom: 10px;
+                    font-size: 24px;
+                }
+                p {
+                    margin-bottom: 25px;
+                    opacity: 0.9;
+                }
+                input {
+                    padding: 15px;
+                    margin: 15px 0;
+                    width: 100%;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 16px;
+                    box-sizing: border-box;
+                    text-align: center;
+                }
+                button {
+                    background: #4CAF50;
+                    color: white;
+                    padding: 15px 30px;
+                    border: none;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-size: 16px;
+                    width: 100%;
+                    transition: all 0.3s;
+                }
+                button:hover {
+                    background: #45a049;
+                    transform: translateY(-2px);
+                }
+                .error {
+                    color: #ff6b6b;
+                    margin: 10px 0;
+                    background: rgba(255,255,255,0.1);
+                    padding: 10px;
+                    border-radius: 5px;
+                }
+                .info {
+                    margin-top: 20px;
+                    font-size: 14px;
+                    opacity: 0.7;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="login-container">
+                <h1>🚚 کنترل یخچال کامیون</h1>
+                <p>لطفاً رمز عبور را وارد کنید</p>
+                
+                ${req.query.error ? '<div class="error">⚠️ رمز عبور اشتباه است</div>' : ''}
+                
+                <form method="GET" action="/">
+                    <input type="password" name="pass" placeholder="رمز عبور سیستم" required>
+                    <button type="submit">🔐 ورود به پنل کنترل</button>
+                </form>
+                
+                <div class="info">
+                    سیستم مانیتورینگ و کنترل یخچال صنعتی
+                </div>
+            </div>
+        </body>
+        </html>
+        `);
+    }
+}
+
+// صفحه اصلی با پسورد
+app.get('/', checkPassword, (req, res) => {
     res.send(`
     <!DOCTYPE html>
     <html dir="rtl">
@@ -78,16 +187,26 @@ app.get('/', (req, res) => {
                 text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
             }
             .status-item { margin: 10px 0; font-size: 18px; }
+            .logout { 
+                background: #ff6b6b; 
+                color: white; 
+                padding: 10px 20px; 
+                margin-top: 20px;
+                text-decoration: none;
+                display: inline-block;
+                border-radius: 5px;
+            }
         </style>
     </head>
     <body>
         <div class="container">
             <h1>🚚 کنترل یخچال کامیون</h1>
+            <a href="/" class="logout">🚪 خروج</a>
             
             <div class="status">
                 <div class="status-item">
                     <h3>🌡️ دمای فعلی</h3>
-                    <div class="temp" id="temperature">${deviceData.temperature}</div>
+                    <div class="temp" id="temperature">${deviceData.temperature.toFixed(1)}</div>
                 </div>
             </div>
 
@@ -118,11 +237,12 @@ app.get('/', (req, res) => {
         </div>
 
         <script>
-            const API_URL = "https://truck-fridge-api.onrender.com";
+            const API_URL = window.location.origin;
+            const password = new URLSearchParams(window.location.search).get('pass');
 
             async function controlOutput(outputNum, state) {
                 try {
-                    const response = await fetch(API_URL + '/control', {
+                    const response = await fetch(API_URL + '/control?pass=' + password, {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({
@@ -144,7 +264,7 @@ app.get('/', (req, res) => {
 
             async function updateStatus() {
                 try {
-                    const response = await fetch(API_URL + '/status');
+                    const response = await fetch(API_URL + '/status?pass=' + password);
                     const data = await response.json();
                     
                     document.getElementById('temperature').textContent = data.temperature.toFixed(1);
@@ -164,14 +284,14 @@ app.get('/', (req, res) => {
     `);
 });
 
-// API Routes
+// API Routes (همچنان بدون پسورد برای ESP8266)
 app.post('/data', (req, res) => {
     console.log('📨 Data received:', req.body);
     deviceData = {...deviceData, ...req.body};
     res.json({status: "success", message: "Data received"});
 });
 
-app.get('/status', (req, res) => {
+app.get('/status', checkPassword, (req, res) => {
     console.log('📊 Status requested');
     res.json(deviceData);
 });
@@ -183,7 +303,7 @@ app.get('/commands', (req, res) => {
     res.json({commands: commands});
 });
 
-app.post('/control', (req, res) => {
+app.post('/control', checkPassword, (req, res) => {
     console.log('🎛️ Control command:', req.body);
     
     const output = req.body.output;
@@ -203,5 +323,6 @@ app.post('/control', (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`✅ Server running on port ${PORT}`);
-    console.log(`📍 Web Interface: https://truck-fridge-api.onrender.com`);
+    console.log(`🔐 Web Interface: https://truck-fridge-api.onrender.com?pass=truck123`);
+    console.log(`📍 Password: truck123`);
 });
